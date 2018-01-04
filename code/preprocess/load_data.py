@@ -1,54 +1,76 @@
 # coding=utf-8
+from __future__ import print_function
 import os
+import h5py
 import numpy as np
+from copy import copy
+from deepst.preprocessing import MinMaxNormalization
+from deepst.datasets.STMatrix import STMatrix
 
 DATAPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
-BDR = [30.727818, 104.129591, 30.652828, 104.042102]  # 顺时针
-WIDTH = 16
-HEIGHT = 16
-T = 48
-DATA = np.zeros((16, 16))
 
 
-def cut_map():
-    udi = (BDR[0] - BDR[2])/HEIGHT
-    lri = (BDR[1] - BDR[3])/WIDTH
-    up2down = []
-    left2right = []
-    for i in range(HEIGHT):
-        up2down.append(BDR[0] - i * udi)
-        left2right.append(BDR[3] + i * lri)
-    up2down.append(BDR[2])
-    left2right.append(BDR[1])
-    return up2down, left2right
+def load_h5data(fname):
+    f = h5py.File(fname, 'r')
+    data = f['data'].value
+    timestamps = f['timestamp'].value
+    f.close()
+    return timestamps, data
 
 
-def load_data():
-    f = open(os.path.join(DATAPATH, 'order_20161101.txt'))
-    lines = f.readlines()
-    log = []
-    lat = []
-    time = []
-    for line in lines:
-        driver_id, up_time, down_time, up_log, up_lat, down_log, down_lat = line.split(",")
-        time.qppend(up_time)
-        log.append(float(up_log))
-        lat.append(float(up_lat))
-    lat_interval, log_interval = cut_map()
-    row = 0
-    col = 0
-    for i in range(len(log)):
-        for j in range(WIDTH):
-            if log[i] < log_interval[j]:
-                col = j - 1
-                break
-        # print col
-        for j in range(HEIGHT):
-            if lat[i] > lat_interval[j]:
-                row = j - 1
-                break
-        # print row
-        DATA[row][col] += 1
-    print DATA
+def load_data(T, len_closeness, len_period, len_test):
+    assert (len_closeness + len_period > 0)
+    # load data
+    fname = os.path.join(DATAPATH, 'test.h5')
+    timestamps, data = load_h5data(fname)
+    data_all = [data]
+    timestamps_all = [timestamps]
+    # minmax_scale
+    data_train = data[:-len_test]
+    print('train_data shape: ', data_train.shape)
+    mmn = MinMaxNormalization()
+    mmn.fit(data_train)
+    data_all_mmn = []
+    for d in data_all:
+        data_all_mmn.append(mmn.transform(d))
 
-load_data()
+    XC, XP, XT = [], [], []
+    Y = []
+    timestamps_Y = []
+    for data, timestamps in zip(data_all_mmn, timestamps_all):
+        # instance-based dataset --> sequences with format as (X, Y) where X is a sequence of images and Y is an image.
+        st = STMatrix(data, timestamps, T, CheckComplete=False)
+        _XC, _XP, _Y, _timestamps_Y = st.create_dataset(len_closeness=len_closeness, len_period=len_period)
+        XC.append(_XC)
+        XP.append(_XP)
+        # XT.append(_XT)
+        Y.append(_Y)
+        timestamps_Y += _timestamps_Y
+
+    XC = np.vstack(XC)
+    XP = np.vstack(XP)
+    # XT = np.vstack(XT)
+    Y = np.vstack(Y)
+    print("XC shape: ", XC.shape, "XP shape: ", XP.shape,
+          # "XT shape: ", XT.shape,
+          "Y shape:", Y.shape)
+
+    XC_train, XP_train, Y_train = XC[
+                                  :-len_test], XP[:-len_test], Y[:-len_test]
+    XC_test, XP_test, Y_test = XC[
+                               -len_test:], XP[-len_test:], Y[-len_test:]
+    timestamp_train, timestamp_test = timestamps_Y[
+                                      :-len_test], timestamps_Y[-len_test:]
+
+    X_train = []
+    X_test = []
+    for l, X_ in zip([len_closeness, len_period], [XC_train, XP_train]):
+        if l > 0:
+            X_train.append(X_)
+    for l, X_ in zip([len_closeness, len_period], [XC_test, XP_test]):
+        if l > 0:
+            X_test.append(X_)
+    print(len(X_train),len(X_test))
+    # print('train shape:', X_train.shape, Y_train.shape,
+    #       'test shape: ', X_test.shape, Y_test.shape)
+    return X_train, Y_train, X_test, Y_test, mmn, timestamp_train, timestamp_test
