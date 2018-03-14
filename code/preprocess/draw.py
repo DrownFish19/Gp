@@ -1,13 +1,18 @@
 # coding=utf-8
+"""
+作各种图
+"""
+import sys
+sys.path.append('../')
+from mydeepst.datasets.load_data import load_h5data
 import matplotlib.pyplot as plt
-import load_data
 import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
 DATAPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
-fname = os.path.join(DATAPATH, 'lastdata.h5')
+fname = os.path.join(DATAPATH, 'data.h5')
 BDR = [30.727818, 104.129591, 30.652828, 104.042102]  # 顺时针
 WIDTH = 16
 HEIGHT = 16
@@ -19,7 +24,7 @@ DAY = 30
 WK = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon']
 
 # print (BDR[1]+BDR[3])/2,(BDR[0]+BDR[2])/2
-ts, data = load_data.load_h5data(fname)
+ts, data = load_h5data(fname)
 # # heatmap_all
 # data_all = np.zeros((16, 16))
 # for row in data:
@@ -86,12 +91,3 @@ ts, data = load_data.load_h5data(fname)
 # plt.plot(data_line)
 # f.savefig('../pic/line_wkdhbystamp.png', bbox_inches='tight')
 
-data_line = np.zeros(30)
-for i in range(30):
-    for a in data[30 * i, 12, 5].flat:
-        data_line[i] += a
-print data_line
-f, ax = plt.subplots()
-# plt.xticks(range(0, 48, 2), range(0, 24))
-plt.plot(data_line)
-f.savefig('../pic/dot_trend125.png', bbox_inches='tight')

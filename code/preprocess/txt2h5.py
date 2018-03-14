@@ -1,15 +1,17 @@
 # coding=utf-8
+"""
+处理最原始数据,将其转换为时空数据'data.h5'
+"""
 import os
 import numpy as np
 import time
 import h5py
 
 DATAPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
-BDR = [30.727818, 104.129591, 30.652828, 104.042102]  # 顺时针
-WIDTH = 16
-HEIGHT = 16
-T = 48
-TS = []
+BDR = [30.727818, 104.129591, 30.652828, 104.042102]  # 区域边界,顺时针
+WIDTH, HEIGHT = 16, 16  # 将区域划分为16*16的子区域
+T = 48  # 将一天分为48个时间段,每个时间段30min
+TS = []  # 存储全部时间节点
 YEAR = 2016
 MONTH = 11
 DAY = 30
@@ -82,7 +84,7 @@ def load_data():
             DATA[num][0][row][col] += 1
     timestamp = np.asarray(TS)
     data = np.asarray(DATA)
-    h5f = h5py.File('../data/test.h5', 'w')
+    h5f = h5py.File('../data/data.h5', 'w')
     h5f.create_dataset('timestamp', data=timestamp)
     h5f.create_dataset('data', data=data)
     h5f.close()
