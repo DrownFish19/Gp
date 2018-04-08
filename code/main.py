@@ -3,7 +3,7 @@ from __future__ import print_function
 
 import os
 
-from mydeepst.datasets.load_data import load_data, load_data_c, load_data_cpm
+from mydeepst.datasets.load_data import load_data_cp, load_data_c, load_data_cpm
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from mydeepst.models.STResNet import stresnet, stresnet_c, stresnet_cpm
@@ -75,7 +75,7 @@ def build_model_c():
 def deepST_CP():
     # load data
     print("loading data...")
-    X_train, Y_train, X_test, Y_test, mmn, timestamp_train, timestamp_test = load_data(
+    X_train, Y_train, X_test, Y_test, mmn, timestamp_train, timestamp_test = load_data_cp(
         T=T, len_closeness=len_closeness, len_period=len_period, len_test=len_test)
 
     print('=' * 10)

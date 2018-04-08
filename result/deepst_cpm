@@ -941,3 +941,5 @@ Epoch 100/100
 ==========
 evaluating using the final model
 Test score: 0.001613 rmse (norm): 0.040159 rmse (real): 5.260829
+
+5.137537

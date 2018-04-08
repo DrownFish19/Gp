@@ -10,7 +10,7 @@ DATAPATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 
 
 
 def load_h5data(fname):
-    f = h5py.File(fname, 'r')
+    f = h5py.File(os.path.join(DATAPATH, fname), 'r')
     data = f['data'].value
     timestamps = f['timestamp'].value
     f.close()
@@ -58,6 +58,11 @@ def load_meteorol(timeslots, fname=os.path.join(DATAPATH, 'lastex.h5')):
     print('meger shape:', merge_data.shape)
     return merge_data[-len(timeslots):]
 
+
+def load_data_lstm():
+    fname = os.path.join(DATAPATH, 'data.h5')
+    timestamps, data = load_h5data(fname)
+    return timestamps,data
 
 def load_data_cp(T, len_closeness, len_period, len_test):
     assert (len_closeness + len_period > 0)
