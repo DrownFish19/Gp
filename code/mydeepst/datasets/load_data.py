@@ -17,6 +17,17 @@ def load_h5data(fname):
     return timestamps, data
 
 
+def timeseries():
+    fname = os.path.join(DATAPATH, 'data.h5')
+    timestamps, data = load_h5data(fname)
+    series = []
+    for x in range(data.shape[2]):
+        for y in range(data.shape[3]):
+            series.append(data[:, 0, x, y])
+    series = np.array(series)
+    return timestamps, series
+
+
 def load_meteorol(timeslots, fname=os.path.join(DATAPATH, 'lastex.h5')):
     '''
     timeslots: the predicted timeslots
@@ -62,7 +73,8 @@ def load_meteorol(timeslots, fname=os.path.join(DATAPATH, 'lastex.h5')):
 def load_data_lstm():
     fname = os.path.join(DATAPATH, 'data.h5')
     timestamps, data = load_h5data(fname)
-    return timestamps,data
+    return timestamps, data
+
 
 def load_data_cp(T, len_closeness, len_period, len_test):
     assert (len_closeness + len_period > 0)

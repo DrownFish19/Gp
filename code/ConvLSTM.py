@@ -18,15 +18,15 @@ days_test = 7
 len_test = T * days_test
 
 
-class CustomStopper(EarlyStopping):
-    # add argument for starting epoch
-    def __init__(self, monitor='val_loss', min_delta=0, patience=0, verbose=0, mode='auto', start_epoch=40):
-        super().__init__(monitor=monitor, min_delta=min_delta, patience=patience, verbose=verbose, mode=mode)
-        self.start_epoch = start_epoch
-
-    def on_epoch_end(self, epoch, logs=None):
-        if epoch > self.start_epoch:
-            super().on_epoch_end(epoch, logs)
+# class CustomStopper(EarlyStopping):
+#     # add argument for starting epoch
+#     def __init__(self, monitor='val_loss', min_delta=0, patience=0, verbose=0, mode='auto', start_epoch=40):
+#         super().__init__(monitor=monitor, min_delta=min_delta, patience=patience, verbose=verbose, mode=mode)
+#         self.start_epoch = start_epoch
+#
+#     def on_epoch_end(self, epoch, logs=None):
+#         if epoch > self.start_epoch:
+#             super().on_epoch_end(epoch, logs)
 
 
 def eval_lstm(y, pred_y):
@@ -186,7 +186,7 @@ def main(cnn_flat_size=128,
 
 
 # early_stopping = EarlyStopping(monitor='val_rmse', patience=5, mode='min')
-stop = CustomStopper(monitor='val_loss', min_delta=0, patience=5, verbose=0, mode='min', start_epoch = 40)
+stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=0, mode='min')
 batch_size = 64
 max_epochs = 100
 

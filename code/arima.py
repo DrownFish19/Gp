@@ -1,102 +1,81 @@
 # coding=utf-8
-import pandas as pd
-from statsmodels.tsa.stattools import adfuller
-import statsmodels.tsa.stattools as st
+from __future__ import print_function
 import numpy as np
-import pyflux as pf
-from mydeepst.datasets.load_data import load_h5data
-
-# daily_payment = pd.read_csv('xxx.csv',parse_dates=[0], index_col=0)
-ts, dt = load_h5data('data.h5')
-df = np.zeros((16 * 16, 48 * 30))
-for i in range(16):
-    for j in range(16):
-        df[i * j] = dt[:, 0, i, j]
-
-
-# data = pd.DataFrame(data)
-# print data
-
-def test_stationarity(timeseries):
-    dftest = adfuller(timeseries, autolag='AIC')
-    return dftest[1]
+import pandas as pd
+from time import mktime
+import time
+from datetime import datetime
+import pandas as pd
+from mydeepst.preprocessing.minmax_normalization import MinMaxNormalization
+from mydeepst.datasets.load_data import timeseries
+from statsmodels.tsa.arima_model import ARMA
 
 
-def best_diff(df, maxdiff=8):
-    p_set = {}
-    for i in range(0, maxdiff):
-        temp = df.copy()  # 每次循环前，重置
-        if i == 0:
-            temp['diff'] = temp[temp.columns[1]]
-        else:
-            temp['diff'] = temp[temp.columns[1]].diff(i)
-            temp = temp.drop(temp.iloc[:i].index)  # 差分后，前几行的数据会变成nan，所以删掉
-        pvalue = test_stationarity(temp['diff'])
-        p_set[i] = pvalue
-        p_df = pd.DataFrame.from_dict(p_set, orient="index")
-        p_df.columns = ['p_value']
-    i = 0
-    while i < len(p_df):
-        if p_df['p_value'][i] < 0.01:
-            bestdiff = i
-            break
-        i += 1
-    return bestdiff
+T = 48
+days_test = 7
+days_train = 23
+len_test = T * days_test
+
+input_steps = 10
+output_steps = 1
+run_times = 500
+pre_process = MinMaxNormalization()
+split = [T*days_train,T*days_test]
+print('load train, validate, test data...')
+ts, data = timeseries()
+print('preprocess train data...')
+pre_process.fit(data)  # 返回最大值和最小值
+data = pre_process.transform(data)
+# data = np.transpose(np.asarray(data), (1,0))
+#(256,48*30)
+all_timestamps_struct = [time.strptime(t, '%Y%m%d%H%M') for t in ts]
+timestamps = [datetime.fromtimestamp(mktime(t)) for t in all_timestamps_struct]
+train_data = data[ :-len_test,:]
+test_data = data[-len_test:,:]
+train_timestamps = timestamps[:-len_test]
+test_timestamps = timestamps[-len_test:]
 
 
-def produce_diffed_timeseries(df, diffn):
-    if diffn != 0:
-        df['diff'] = df[df.columns[1]].apply(lambda x: float(x)).diff(diffn)
-    else:
-        df['diff'] = df[df.columns[1]].apply(lambda x: float(x))
-    df.dropna(inplace=True)  # 差分之后的nan去掉
-    return df
+print('======================= ARMA for test ===============================')
+loss = 0
+error_count = 0
+index_all = np.zeros([run_times, 2])
+error_index = np.zeros(run_times)
+test_target = np.zeros([run_times, output_steps])
+test_prediction = np.zeros([run_times, output_steps])
+for r in range(run_times):
+    print('run '+str(r))
+    i = np.random.randint(data.shape[0])
+    j = np.random.randint(test_data.shape[-1]-output_steps)
+    train_df = pd.DataFrame(data[i][j:split[0]+j])
+    train_df.index = pd.DatetimeIndex(timestamps[j:split[0]+j])
 
-
-def choose_order(ts, maxar, maxma):
-    order = st.arma_order_select_ic(ts, maxar, maxma, ic=['aic', 'bic', 'hqic'])
-    return order.bic_min_order
-
-
-def predict_recover(ts, df, diffn):
-    if diffn != 0:
-        ts.iloc[0] = ts.iloc[0] + df['log'][-diffn]
-        ts = ts.cumsum()
-    ts = np.exp(ts)
-    #    ts.dropna(inplace=True)
-    print('还原完成')
-    return ts
-
-
-def run_aram(df, maxar, maxma, test_size=7 * 48):
-    # data = df.dropna()
-    data = df[0, :]
-    # print data.shape
-    # datalog = np.log(data)
-    # print datalog
-    train_size = len(data) - int(test_size)
-    train, test = data[:train_size], data[train_size:]
-    diffn = 0
-    if test_stationarity(train) < 0.01:
-        print('平稳，不需要差分')
-    else:
-        diffn = best_diff(train, maxdiff=8)
-        train = produce_diffed_timeseries(train, diffn)
-        print('差分阶数为' + str(diffn) + '，已完成差分')
-    print('开始进行ARMA拟合')
-    order = choose_order(train, maxar, maxma)
-    print('模型的阶数为：' + str(order))
-    _ar = order[0]
-    _ma = order[1]
-    model = pf.ARIMA(data=train, ar=_ar, ma=_ma, target='diff', family=pf.Normal())
-    model.fit("MLE")
-    # test = test['payment_times']
-    test_predict = model.predict(int(test_size))
-    test_predict = predict_recover(test_predict, train, diffn)
-    print test_predict
-    RMSE = np.sqrt(((np.array(test_predict) - np.array(test)) ** 2).sum() / test.size)
-    print("测试集的RMSE为：" + str(RMSE))
-
-
-if __name__ == '__main__':
-    run_aram(df, 6, 4)
+    try:
+        results = ARMA(train_df, order=(2,2)).fit(trend='nc', disp=-1)
+    except:
+        error_index[error_count] = r
+        error_count += 1
+        continue
+    pre, _, _ = results.forecast(output_steps)
+    test_real = test_data[i][j:j+output_steps]
+    index_all[r] = [i,j]
+    test_target[r] = test_real
+    test_prediction[r] = pre
+    loss += np.sum(np.square(pre - test_real))
+print('================ calculate rmse for test data ============')
+#n_rmse_val = np.sqrt(np.sum(np.square(val_predict - val_real))*1.0/np.prod(val_real.shape))
+#n_rmse_test = np.sqrt(np.sum(np.square(test_predict - test_real))*1.0/np.prod(test_real.shape))
+#rmse_val = pre_process.real_loss(n_rmse_val)
+#rmse_test = pre_process.real_loss(n_rmse_test)
+#print('val loss is ' + str(n_rmse_val) + ' , ' + str(rmse_val))
+#print('test loss is ' + str(n_rmse_test) + ' , ' + str(rmse_test))
+#print('val loss is ' + str(n_rmse_val))
+print('run times: '+str(run_times))
+print('error count: '+str(error_count))
+rmse = np.sqrt(loss/((run_times-error_count)*output_steps))
+rmse = rmse* (pre_process._max - pre_process._min) / 2
+print('test loss is ' + str(rmse))
+# np.save('../citybike-results/results/ARMA/test_target.npy', test_target)
+# np.save('../citybike-results/results/ARMA/test_prediction.npy', test_prediction)
+# np.save('../citybike-results/results/ARMA/index_all.npy', index_all)
+# np.save('../citybike-results/results/ARMA/error_index.npy', error_index)

@@ -324,8 +324,11 @@ class models:
         att_low_level = [attention.Attention(method='cba')([att_lstms[att], lstm]) for att in range(att_lstm_num)]
         att_low_level = Concatenate(axis=-1)(att_low_level)
         att_low_level = Reshape(target_shape=(att_lstm_num, lstm_out_size))(att_low_level)
-        att_high_level = LSTM(units=lstm_out_size, return_sequences=False, dropout=0.1, recurrent_dropout=0.1)(
+
+        att_high_level = LSTM(units=lstm_out_size, return_sequences=True, dropout=0.1, recurrent_dropout=0.1)(
             att_low_level)
+        att_high_level = attention.Attention(method='cba')([att_high_level,lstm])
+        att_high_level = Reshape(target_shape=(att_lstm_num, lstm_out_size))(att_low_level)
 
         lstm_all = Concatenate(axis=-1)([att_high_level, lstm])
         lstm_all = Dense(units=output_shape)(lstm_all)
